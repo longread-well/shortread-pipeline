@@ -1,0 +1,99 @@
+configfile: "config.yaml"
+
+CENTRES_TECHNOLOGIES_DONORS_INDEX = []
+for tech in config["SAMPLES"]:
+  for centre in config["SAMPLES"][tech]:
+    for donor in config["SAMPLES"][tech][centre]:
+      for index in config["SAMPLES"][tech][centre][donor]:
+        CENTRES_TECHNOLOGIES_DONORS_INDEX.append(f"{centre}_{tech}_{donor}_{index}")
+# Creates a list like the following: ['whg_coolmps_HV31_IDX1', 'whg_coolmps_NA12878_IDX1',
+#                              'nygc_illumina_NA12878_IDX1',
+#                              'whg_illumina_NA12878_NE725538', 'whg_illumina_NA12878_NE755566',
+#                              'whg_illumina_NA12878_NE760511', 'whg_illumina_NA12878_NE796507']
+
+localrules: all, multiqc
+
+rule all:
+     input:
+        multiqc = "results/multiqc/fastuniq_multiqc_report.html"
+        
+rule multiqc:
+     input: expand("results/fqc/{ctdi}_{R}_fastqc.zip", ctdi=CENTRES_TECHNOLOGIES_DONORS_INDEX, R=["R1", "R2"])
+     output:
+        htmlreport = "results/multiqc/fastuniq_multiqc_report.html",
+        zipdata = "results/multiqc/fastuniq_multiqc_report_data.zip",
+        files = temp("results/multiqc/fastuniq.txt")
+     threads: 1
+     params:
+        outputdir = "results/multiqc/",
+        title = "fastuniq"
+     conda: "envs/conda.yaml"
+     shell:
+           """
+           export LC_ALL=en_GB.utf8
+           echo {input} | tr " " "\n" > {output.files}
+           multiqc -f -z -i {params.title} -o {params.outputdir} --file-list {output.files}
+           """
+
+rule fqc:
+    input:
+        fq1 = "results/mergelanes/{centre}_{tech}_{donor}_{index}_R1.fq.gz",
+        fq2 = "results/mergelanes/{centre}_{tech}_{donor}_{index}_R2.fq.gz",
+        adapters = "reference/adapter_sequences/adapters.tsv"
+    output:
+        html1 = "results/fqc/{centre}_{tech}_{donor}_{index}_R1_fastqc.html",
+        zip1 = "results/fqc/{centre}_{tech}_{donor}_{index}_R1_fastqc.zip",
+        html2 = "results/fqc/{centre}_{tech}_{donor}_{index}_R2_fastqc.html",
+        zip2 = "results/fqc/{centre}_{tech}_{donor}_{index}_R2_fastqc.zip"
+    threads: 1
+    params: outputdir = "results/fqc/"
+    conda: "envs/conda.yaml"
+    shell: "fastqc -q -a {input.adapters} -o {params.outputdir} {input.fq1} {input.fq2}"
+
+def input_mergelanes(wc):
+  # This will return a named dict as input for the next rule
+  lanes = list(config["SAMPLES"][wc.tech][wc.centre][wc.donor][wc.index].keys())
+  fq1s = [f"fastuniq/{wc.centre}_{wc.tech}_{wc.donor}_{wc.index}_{lane}_R1.fq" for lane in lanes]
+  fq2s = [f"fastuniq/{wc.centre}_{wc.tech}_{wc.donor}_{wc.index}_{lane}_R2.fq" for lane in lanes]
+  inputs = { "fq1s" : fq1s,  
+             "fq2s" : fq2s}
+  return(inputs)           
+rule mergelanes:
+    input: unpack(input_mergelanes)
+    output:
+        fq1 = "results/mergelanes/{centre}_{tech}_{donor}_{index}_R1.fq.gz",
+        fq2 = "results/mergelanes/{centre}_{tech}_{donor}_{index}_R2.fq.gz"
+    threads: 1
+    conda: "envs/conda.yaml"
+    shell:
+           """
+           cat {input.fq1s} | gzip -c - > {output.fq1}
+	   cat {input.fq2s} | gzip -c - > {output.fq2}
+           """
+
+rule fastuniq:
+    input:
+        fq1 = lambda wc: config["SAMPLES"][wc.tech][wc.centre][wc.donor][wc.index][wc.lane][0],
+        fq2 = lambda wc: config["SAMPLES"][wc.tech][wc.centre][wc.donor][wc.index][wc.lane][1]
+    output:
+        # Notice that it is outputting uncompressed fq files.
+        fq1 = temp("fastuniq/{centre}_{tech}_{donor}_{index}_{lane}_R1.fq"),
+        fq2 = temp("fastuniq/{centre}_{tech}_{donor}_{index}_{lane}_R2.fq"),
+        # These are actually the uncompressed input files
+        fq1_uncompress = temp("fastuniq/input_{centre}_{tech}_{donor}_{index}_{lane}_R1.fq"),
+        fq2_uncompress = temp("fastuniq/input_{centre}_{tech}_{donor}_{index}_{lane}_R2.fq"),
+        # For the file list
+        filelist = temp("fastuniq/{centre}_{tech}_{donor}_{index}_{lane}.txt")
+    threads: 12
+    # Note: This tool requires around 512 Gb of memory
+    conda: "envs/conda.yaml"
+    shell:
+           """
+           pigz -p {threads} -dc {input.fq1} > {output.fq1_uncompress} 
+           pigz -p {threads} -dc {input.fq2} > {output.fq2_uncompress}
+           echo {output.fq1_uncompress} > {output.filelist}
+           echo {output.fq2_uncompress} >> {output.filelist}
+           fastuniq -i {output.filelist} -o {output.fq1} -p {output.fq2}
+           """             
+
+            

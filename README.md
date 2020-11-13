@@ -4,7 +4,7 @@ This folder contains scripts used to assess short-read sequencing performance.
 Warning: files in this folder will be publicly shared!
 Do not put any sensitive or environment-specific details here.
 
-##Contributing
+## Contributing
 
 We are using the following structure:
 
@@ -23,7 +23,7 @@ Where possible, conda environments can be used wthin snakemake to include needed
 
 Ultimately we will aim to run the pipeline through a top-level configuration file which lists all datasets to be processed.
 
-## Contributors ##
+## Contributors
 
 - Gavin Band (WHG)
 - David Flores (WHG)

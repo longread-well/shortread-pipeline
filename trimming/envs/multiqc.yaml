@@ -1,7 +1,6 @@
-name: conda
+name: multiqc
 channels:
   - bioconda
+  - conda-forge
 dependencies:
-  - fastqc=0.11.9
   - multiqc=1.9
-  - cutadapt=2.10 

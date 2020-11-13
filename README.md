@@ -25,6 +25,6 @@ Ultimately we will aim to run the pipeline through a top-level configuration fil
 
 ## Contributors
 
-- Gavin Band (WHG)
-- David Flores (WHG)
+- Gavin Band
+- David Flores
 

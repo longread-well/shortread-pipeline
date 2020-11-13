@@ -1,7 +1,7 @@
 # Short-read platform comparison pipelines
 This folder contains scripts used to assess short-read sequencing performance.
 
-Warning: files in this folder will be publicly shared!
+Warning: files in this folder are publicly shared!
 Do not put any sensitive or environment-specific details here.
 
 ## Contributing

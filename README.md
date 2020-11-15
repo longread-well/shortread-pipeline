@@ -25,6 +25,16 @@ Where possible, conda environments can be used wthin snakemake to include needed
 
 Ultimately we will aim to run the pipeline through a top-level configuration file which lists all datasets to be processed.
 
+## Note on conda
+
+Note: these pipelines use conda environments within snakemake to get relevant software.
+To enable this you need to have set up your environment first like this:
+
+```
+eval "$(/path/to/conda shell.bash hook)"
+```
+And you need to run snakemake with the `--use-conda` command line option.
+
 ## Contributors
 
 - Gavin Band

@@ -1,0 +1,27 @@
+{
+	"comment": "This is an example config file.  Populate with real values for actual work.  Please note this is currently JSON so all comments (# lines) must be removed.",
+    "data": {
+			"nygc_illumina_NA12878": {
+            "sample": "NA12878",
+            "technology": "illumina",
+            "platform": "novaseq",
+            "centre": "nygc",
+            "read_length": 150,
+            "indices": [ "" ],
+            "lanes": [ "" ],
+            "adapters": "TruSeq_Y",
+				# read filenames must have {lane}, {inde}, {read} wildcards in.
+				# these will be expanded from indices and lanes above and read=1 or 2.
+            "reads": "data/illumina/nygc/ERR3239334_100bp_{lane}{index}{read}.fastq.gz"
+        },
+		// Add more data files here.
+    },
+    "adapter_sequences": {
+        "TruSeq_Y": {
+            "fwd": "AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC",
+            "rev": "AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT"
+        },
+		etc.
+    }
+}
+

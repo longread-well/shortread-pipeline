@@ -1,0 +1,12 @@
+{
+	"__default__": {
+		"cores": "1",
+		"queue": "short.qc",
+		"logdir": "logs",
+		"project": "kwiatkowski.prjc",
+		"name": "trim{name}.{jobid}"
+	},
+	"thin_data": {
+		"cores": "4"
+	}
+}

@@ -1,106 +1,78 @@
+data = config['data']
+adapter_sequences = config['adapter_sequences']
 
-# TODO: move this stuff to configuration files.
+def getAdapterSequences( name ):
+	return adapter_sequences[data[name]['adapters']]
 
-tools = {
-	"fastqc": "~/Projects/Software/3rd_party/FastQC/fastqc",
-	"seqtk": "~/Projects/Software/3rd_party/seqtk/seqtk",
-	"cutadapt": "cutadapt",
-	"multiqc": "multiqc",
-	"trimmomatic": "/apps/well/trimmomatic/0.36/trimmomatic-0.36.jar"
-}
+def reverseComplement( sequence ):
+	complement = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A'} 
+	return ''.join( [ complement[base] for base in sequence ][::-1] )
 
-files = [
-	"nygc_illumina_NA12878_100bp_R{read}",
-	"nygc_illumina_NA12878_150bp_R{read}",
-	"whg_coolmps_HV31_IDX1_R{read}",
-	"whg_coolmps_HV31_IDX2_R{read}",
-	"whg_coolmps_NA12878_IDX3_R{read}",
-	"whg_coolmps_NA12878_IDX4_R{read}",
-	"whg_illumina_NA12878_NE725538_R{read}",
-	"whg_illumina_NA12878_NE755566_R{read}",
-	"whg_illumina_NA12878_NE760511_R{read}",
-	"whg_illumina_NA12878_NE796507_R{read}"
-]
+wildcard_constraints:
+	idx = "(_[0-9A-Za-z]+)!"
 
-adapters = {
-	"whg_coolmps": "MGI",
-	"whg_illumina": "TruSeq_Y",
-	"nygc_illumina": "TruSeq_Y"
-}
-
-adapter_fastas = {
-	"TruSeq_Y": "reference/adapter_sequences/TruSeq_Y.fa",
-	"MGI":  "reference/adapter_sequences/MGI.fa"
-}
-
-adapter_sequences = {
-	"TruSeq_Y": { "fwd": "AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC", "rev": "AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT" },
-	"Nextera": { "fwd": "CTGTCTCTTATACACATCTCCGAGCCCACGAGAC", "rev": "CTGTCTCTTATACACATCTGACGCTGCCGACGA" },
-	"10X_linked_reads": { "fwd": "AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC", "rev": "AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGTAGATC" },
-	"MGI_stLFR": { "fwd": "CTGTCTCTTATACACATCTTAGGAAGACAAGCACTGACGACATGA", "rev": "TCTGCTGAGTCGAGAACGTCTCTGTGAGCCAAGGAGTTGCTCTGG" },
-	"MGI": { "fwd": "AAGTCGGAGGCCAAGCGGTCTTAGGAAGACAA", "rev": "AAGTCGGATCGTAGCCATGTCGTTCTGTGAGCCAAGGAGTTG" }
-}
-
-def getCentrePlatformIndex( files ):
-	return [
-		{
-			"centre": a[0],
-			"platform": a[1],
-			"sample": a[2],
-			"index": a[3]
-		}
-		for a in [ elt.split( "_" ) for elt in files ]
-	]
-
-index = getCentrePlatformIndex( files )
-
-print( index )
-
-def getAdapters( centre, platform ):
-	return adapter_fastas[adapters[ '%s_%s' % ( centre, platform ) ]]
-
-def getAdapterSequences( centre, platform ):
-	return adapter_sequences[adapters[ '%s_%s' % ( centre, platform ) ]]
+rule createAdapterFastas:
+	output:
+		fasta = "results/{outputdir}/adapters/{name}.fa"
+	run:
+		name = wildcards.name
+		sequences = adapter_sequences[name]
+		lines = {}
+		# trimmomatic paired-end primers, note naming is important!
+		lines[ 'Prefix%s_adapter/1' % name ] = sequences['fwd']
+		lines[ 'Prefix%s_adapter/2' % name ] = sequences['rev']
+		# trimmomatic single-end primers
+		lines[ '%s_adapter1' % name ] = sequences['fwd']
+		lines[ '%s_adapter1_rc' % name ] = reverseComplement( sequences['fwd'] )
+		lines[ '%s_adapter2' % name ] = sequences['rev']
+		lines[ '%s_adapter2_rc' % name ] = reverseComplement( sequences['rev'] )
+		o = open( output.fasta, 'w' )
+		for key in lines.keys():
+			o.writelines([
+				'>%s\n' % key,
+				"%s\n" % lines[key]
+			])
+		o.close()
 
 rule run_trimmomatic:
 	input:
-		read1 = "results/{outputdir}/{platform}/{centre}/{centre}_{platform}_{sample}_{idx}_R1_untrimmed.fq.gz",
-		read2 = "results/{outputdir}/{platform}/{centre}/{centre}_{platform}_{sample}_{idx}_R2_untrimmed.fq.gz"
+		read1 = "results/{outputdir}/{technology}/{centre}/{name}{idx}_R1_untrimmed.fq.gz",
+		read2 = "results/{outputdir}/{technology}/{centre}/{name}{idx}_R2_untrimmed.fq.gz",
+		adapters = lambda w: "results/{outputdir}/%s.fa" % adapter_sequences[data[w.name]['adapters']],
 	output:
-		fwd_pair = "results/{outputdir}/{platform}/{centre}/{centre}_{platform}_{sample}_{idx}_R1_trimmomatic.fq.gz",	
-		rev_pair = "results/{outputdir}/{platform}/{centre}/{centre}_{platform}_{sample}_{idx}_R2_trimmomatic.fq.gz",
-		fwd_unpair = "results/{outputdir}/{platform}/{centre}/{centre}_{platform}_{sample}_{idx}_R1_trimmomatic_unpaired.fq.gz",
-		rev_unpair = "results/{outputdir}/{platform}/{centre}/{centre}_{platform}_{sample}_{idx}_R2_trimmomatic_unpaired.fq.gz",
-		trimlog = "results/{outputdir}/{platform}/{centre}/{centre}_{platform}_{sample}_{idx}_trimmomatic_trimlog.txt.gz"
+		fwd_pair = "results/{outputdir}/{technology}/{centre}/{name}{idx}_R1_trimmomatic.fq.gz",	
+		rev_pair = "results/{outputdir}/{technology}/{centre}/{name}{idx}_R2_trimmomatic.fq.gz",
+		fwd_unpair = "results/{outputdir}/{technology}/{centre}/{name}{idx}_R1_trimmomatic_unpaired.fq.gz",
+		rev_unpair = "results/{outputdir}/{technology}/{centre}/{name}{idx}_R2_trimmomatic_unpaired.fq.gz",
+		trimlog = "results/{outputdir}/{technology}/{centre}/{name}{idx}_trimmomatic_trimlog.txt.gz"
 	params:
-		adapters = lambda w: getAdapters( w.centre, w.platform ),
 		threads = 8,
 		trimlog = lambda w, output: output.trimlog.replace( ".gz", "" )
 	conda: "envs/trimmomatic.yaml"
 	shell: """
-		#java -jar {params.trimmomatic} PE \
+		echo running trimmomatic
 		trimmomatic PE \
 		-threads {params.threads} \
 		-trimlog {params.trimlog} \
 		{input.read1} {input.read2} \
 		{output.fwd_pair} {output.fwd_unpair} \
 		{output.rev_pair} {output.rev_unpair} \
-		ILLUMINACLIP:{params.adapters}:2:30:10:2:true MINLEN:50
+		ILLUMINACLIP:{input.adapters}:2:30:10:2:true MINLEN:50
 		gzip {params.trimlog}
 	"""
 
 rule run_cutadapt:
 	input:
-		read1 = "results/{outputdir}/{platform}/{centre}/{centre}_{platform}_{sample}_{idx}_R1_untrimmed.fq.gz",
-		read2 = "results/{outputdir}/{platform}/{centre}/{centre}_{platform}_{sample}_{idx}_R2_untrimmed.fq.gz"
+		read1 = "results/{outputdir}/{technology}/{centre}/{name}{idx}_R1_untrimmed.fq.gz",
+		read2 = "results/{outputdir}/{technology}/{centre}/{name}{idx}_R2_untrimmed.fq.gz"
 	output:
-		fwd_pair = "results/{outputdir}/{platform}/{centre}/{centre}_{platform}_{sample}_{idx}_R1_cutadapt.fq.gz",	
-		rev_pair = "results/{outputdir}/{platform}/{centre}/{centre}_{platform}_{sample}_{idx}_R2_cutadapt.fq.gz",
-		log = "results/{outputdir}/{platform}/{centre}/{centre}_{platform}_{sample}_{idx}_cutadapt.log"
-		#info = "results/{outputdir}/{platform}/{centre}/{centre}_{platform}_{sample}_{idx}_cutadapt_info.txt.gz"
+		fwd_pair = "results/{outputdir}/{technology}/{centre}/{name}{idx}_R1_cutadapt.fq.gz",	
+		rev_pair = "results/{outputdir}/{technology}/{centre}/{name}{idx}_R2_cutadapt.fq.gz",
+		log = "results/{outputdir}/{technology}/{centre}/{name}{idx}_cutadapt.log"
+		#info = "results/{outputdir}/{technology}/{centre}/{name}{idx}_cutadapt_info.txt.gz"
 	params:
-		adapters_fwd = lambda w: getAdapterSequences( w.centre, w.platform )['fwd'],
-		adapters_rev = lambda w: getAdapterSequences( w.centre, w.platform )['rev'],
+		adapters_fwd = lambda w: getAdapterSequences( w.name )['fwd'],
+		adapters_rev = lambda w: getAdapterSequences( w.name )['rev'],
 		threads = 8
 		#info = lambda w, output: output.info.replace( ".gz", "" )
 	conda: "envs/cutadapt.yaml"
@@ -119,14 +91,16 @@ rule run_cutadapt:
 
 rule run_fastqc:
 	input:
-		fq1 = "results/{outputdir}/{platform}/{centre}/{centre}_{platform}_{sample}_{idx}_R1_{trimmethod}.fq.gz",
-		fq2 = "results/{outputdir}/{platform}/{centre}/{centre}_{platform}_{sample}_{idx}_R2_{trimmethod}.fq.gz",
+		fq1 = "results/{outputdir}/{technology}/{centre}/{name}{idx}_R1_{trimmethod}.fq.gz",
+		fq2 = "results/{outputdir}/{technology}/{centre}/{name}{idx}_R2_{trimmethod}.fq.gz",
 		adapters = "reference/adapter_sequences/adapters.tsv"
 	output:
-		fq1 = "results/{outputdir}/{platform}/{centre}/fqc/{centre}_{platform}_{sample}_{idx}_R1_{trimmethod}_fastqc.html",
-		fq2 = "results/{outputdir}/{platform}/{centre}/fqc/{centre}_{platform}_{sample}_{idx}_R2_{trimmethod}_fastqc.html"
+		fq1 = "results/{outputdir}/{technology}/{centre}/fqc/{name}{idx}_R1_{trimmethod}_fastqc.html",
+		fq2 = "results/{outputdir}/{technology}/{centre}/fqc/{name}{idx}_R2_{trimmethod}_fastqc.html",
+		zip1 = "results/{outputdir}/{technology}/{centre}/fqc/{name}{idx}_R1_{trimmethod}_fastqc.zip",
+		zip2 = "results/{outputdir}/{technology}/{centre}/fqc/{name}{idx}_R2_{trimmethod}_fastqc.zip"
 	params:
-		outputdir = "results/{outputdir}/{platform}/{centre}/fqc"
+		outputdir = "results/{outputdir}/{technology}/{centre}/fqc"
 	conda: "envs/fastqc.yaml"
 	shell: """
 		fastqc -q -a {input.adapters} -o {params.outputdir} {input.fq1} {input.fq2}
@@ -135,25 +109,26 @@ rule run_fastqc:
 rule run_multiqc:
 	input:
 		fastqc = [
-			"results/{outputdir}/{platform}/{centre}/fqc/{centre}_{platform}_{sample}_{idx}_R1_{trimmethod}_fastqc.zip".format(
-				centre = elt['centre'],
-				platform = elt['platform'],
-				sample = elt['sample'],
-				idx = elt['index'],
-				trimmethod = trimmethod,
+			"results/{outputdir}/{technology}/{centre}/fqc/{name}{idx}_R1_{trimmethod}_fastqc.zip".format(
+				name = key,
+				centre = data[key]['centre'],
+				technology = data[key]['technology'],
+				idx = idx,
+				trimmethod = '{trimmethod}',
 				outputdir = '{outputdir}'
 			)
-			for elt in index
-			for trimmethod in [ 'untrimmed', 'trimmomatic', 'cutadapt' ]
+			for key in data.keys()
+			for idx in data[key]['indices']
 		]
 	output:
-		report = "results/{outputdir}/multiqc/report.html"
+		report = "results/{outputdir}/multiqc/report-{trimmethod}.html"
 	params:
-		outputdir = "results/{outputdir}/multiqc"
+		outputdir = "results/{outputdir}/multiqc",
+		filename = "report-{trimmethod}.html"
 	conda: "envs/multiqc.yaml"
 	shell: """
 		export LC_ALL=en_GB.utf8
 		export LANG=en_GB.utf8
-		multiqc -o {params.outputdir} --filename "report.html" {input.fastqc}
+		multiqc -o {params.outputdir} --filename {params.filename} {input.fastqc}
 	"""     
 

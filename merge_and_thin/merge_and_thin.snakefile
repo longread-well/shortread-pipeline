@@ -63,7 +63,7 @@ rule thin_data:
 		# The precise genome length here is taken from GIAB b38 genome.
 		number_of_reads = lambda w: int(( int( w.coverage ) * 3209286105.0) / int( data[w.name]['read_length'] ))
 	shell: """
-		seqtk sample -s {params.seed} {input.read1} {params.number_of_reads} | gzip -c > {output.read1}
-		seqtk sample -s {params.seed} {input.read2} {params.number_of_reads} | gzip -c > {output.read1}
+		seqtk sample -2 -s {params.seed} {input.read1} {params.number_of_reads} | pigz -c -p 7 > {output.read1}
+		seqtk sample -2 -s {params.seed} {input.read2} {params.number_of_reads} | pigz -c -p 7 > {output.read2}
 	"""
 

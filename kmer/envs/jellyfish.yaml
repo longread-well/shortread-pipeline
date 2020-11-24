@@ -1,0 +1,5 @@
+name: jellyfish
+channels:
+  - bioconda
+dependencies:
+  - kmer-jellyfish=2.3

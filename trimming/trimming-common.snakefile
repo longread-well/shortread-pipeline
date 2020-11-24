@@ -109,16 +109,18 @@ rule run_fastqc:
 rule run_multiqc:
 	input:
 		fastqc = [
-			"results/{outputdir}/{technology}/{centre}/fqc/{name}{idx}_R1_{trimmethod}_fastqc.zip".format(
+			"results/{outputdir}/{technology}/{centre}/fqc/{name}{idx}_R{read}_{trimmethod}_fastqc.zip".format(
 				name = key,
 				centre = data[key]['centre'],
 				technology = data[key]['technology'],
 				idx = idx,
 				trimmethod = '{trimmethod}',
-				outputdir = '{outputdir}'
+				outputdir = '{outputdir}',
+				read = read
 			)
 			for key in data.keys()
 			for idx in data[key]['indices']
+			for read in [ "1", "2" ]
 		]
 	output:
 		report = "results/{outputdir}/multiqc/report-{trimmethod}.html"
